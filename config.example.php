@@ -26,4 +26,8 @@ return [
     'max_fails_user' => 5,
     'max_fails_ip'   => 20,
     'lock_minutes'   => 15,
+
+    // Speicherlimit für alle Dateianhänge zusammen (in GB). Ist es erreicht,
+    // muss erst etwas gelöscht werden, bevor neue Dateien hochgeladen werden können.
+    'storage_limit_gb' => 10,
 ];

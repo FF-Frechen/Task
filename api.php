@@ -2,10 +2,13 @@
 /**
  * JSON-API für das Board.
  *   GET  api.php?action=state           → Benutzer + Aufgaben
- *   POST api.php?action=create|update|move|delete   (JSON-Body, Header X-CSRF-Token)
+ *   GET  api.php?action=files&task=ID   → Dateien einer Aufgabe + Speicherbelegung
+ *   POST api.php?action=create|update|move|delete|delete_file   (JSON-Body, Header X-CSRF-Token)
+ *   POST api.php?action=upload           (multipart: task, file, thumb; Header X-CSRF-Token)
  */
 declare(strict_types=1);
 require __DIR__ . '/src/bootstrap.php';
+require __DIR__ . '/src/files.php';
 
 header('Content-Type: application/json; charset=utf-8');
 
@@ -33,6 +36,11 @@ if ($method === 'GET' && $action === 'state') {
     session_write_close();
     respond(load_state());
 }
+if ($method === 'GET' && $action === 'files') {
+    session_write_close();
+    $taskId = existing_task_id($_GET['task'] ?? null);
+    respond(['files' => task_files($taskId), 'storage' => storage_info()]);
+}
 
 if ($method !== 'POST') {
     fail('Methode nicht erlaubt.', 405);
@@ -41,6 +49,24 @@ if (!csrf_valid($_SERVER['HTTP_X_CSRF_TOKEN'] ?? null)) {
     fail('Sitzung abgelaufen – bitte Seite neu laden.', 403);
 }
 session_write_close();
+
+if ($action === 'upload') {
+    if (empty($_FILES) && (int)($_SERVER['CONTENT_LENGTH'] ?? 0) > 0) {
+        fail('Die Datei ist zu groß (max. ' . format_bytes(max_upload_size()) . ' pro Datei).', 413);
+    }
+    $taskId = existing_task_id($_POST['task'] ?? null);
+    $file = $_FILES['file'] ?? null;
+    if (!is_array($file) || is_array($file['name'] ?? null)) {
+        fail('Es wurde keine Datei übertragen.');
+    }
+    $thumb = isset($_FILES['thumb']) && !is_array($_FILES['thumb']['name'] ?? null) ? $_FILES['thumb'] : null;
+    try {
+        store_upload($taskId, $file, $thumb, $me['id']);
+    } catch (UploadError $e) {
+        fail($e->getMessage(), $e->getCode() ?: 400);
+    }
+    respond(['ok' => true, 'files' => task_files($taskId), 'storage' => storage_info()] + load_state());
+}
 
 $raw = file_get_contents('php://input', false, null, 0, 65536);
 $in = json_decode($raw ?: '{}', true);
@@ -119,8 +145,20 @@ switch ($action) {
 
     case 'delete':
         $id = existing_task_id($in['id'] ?? null);
+        delete_files('task_id = ?', [$id]);
         $pdo->prepare('DELETE FROM tasks WHERE id = ?')->execute([$id]);
         respond(['ok' => true] + load_state());
+
+    case 'delete_file':
+        $fileId = filter_var($in['id'] ?? null, FILTER_VALIDATE_INT);
+        $stmt = $pdo->prepare('SELECT task_id FROM files WHERE id = ?');
+        $stmt->execute([$fileId === false ? 0 : $fileId]);
+        $taskId = $stmt->fetchColumn();
+        if ($taskId === false) {
+            fail('Diese Datei gibt es nicht mehr.', 404);
+        }
+        delete_files('id = ?', [$fileId]);
+        respond(['ok' => true, 'files' => task_files((int)$taskId), 'storage' => storage_info()] + load_state());
 
     default:
         fail('Unbekannte Aktion.', 404);
@@ -140,7 +178,8 @@ function load_state(): array
     $rows = $pdo->query(
         "SELECT t.id, t.title, t.description, t.status, t.color, t.position, t.created_by,
                 t.created_at, t.updated_at, t.done_at,
-                (SELECT GROUP_CONCAT(tu.user_id) FROM task_users tu WHERE tu.task_id = t.id) AS assignees
+                (SELECT GROUP_CONCAT(tu.user_id) FROM task_users tu WHERE tu.task_id = t.id) AS assignees,
+                (SELECT COUNT(*) FROM files f WHERE f.task_id = t.id) AS file_count
            FROM tasks t
           ORDER BY CASE WHEN t.status = 'done' THEN 1 ELSE 0 END,
                    CASE WHEN t.status = 'done' THEN t.done_at END DESC,
@@ -158,14 +197,10 @@ function load_state(): array
         'updatedAt'   => iso($t['updated_at']),
         'doneAt'      => iso($t['done_at']),
         'assignees'   => $t['assignees'] ? array_map('intval', explode(',', $t['assignees'])) : [],
+        'fileCount'   => (int)$t['file_count'],
     ], $rows);
 
     return ['me' => current_user()['id'], 'users' => $users, 'tasks' => $tasks];
-}
-
-function iso(?string $sqliteDate): ?string
-{
-    return $sqliteDate ? str_replace(' ', 'T', $sqliteDate) . 'Z' : null;
 }
 
 function clean_title(mixed $title): string

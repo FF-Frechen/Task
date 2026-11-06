@@ -52,6 +52,7 @@ function cfg(string $key): mixed
             'max_fails_user' => 5,           // Fehlversuche pro Benutzername ...
             'max_fails_ip'   => 20,          // ... bzw. pro IP-Adresse ...
             'lock_minutes'   => 15,          // ... innerhalb dieser Minuten => Sperre
+            'storage_limit_gb' => 10,        // Gesamtgröße aller Dateianhänge
         ];
         $local = APP_DIR . '/config.local.php';
         if (is_file($local)) {
@@ -89,7 +90,7 @@ function is_local_request(): bool
 function send_security_headers(): void
 {
     header("Content-Security-Policy: default-src 'self'; script-src 'self'; style-src 'self'; "
-        . "img-src 'self' data:; connect-src 'self'; font-src 'self'; object-src 'none'; "
+        . "img-src 'self' data: blob:; connect-src 'self'; font-src 'self'; object-src 'none'; "
         . "base-uri 'none'; form-action 'self'; frame-ancestors 'none'");
     header('X-Content-Type-Options: nosniff');
     header('X-Frame-Options: DENY');
@@ -201,7 +202,14 @@ function outside_data_dir(): string
  */
 function move_data(string $from, string $to): bool
 {
+    $hasFiles = is_dir($from . '/files');
+    if ($hasFiles && !@rename($from . '/files', $to . '/files')) {
+        return false;
+    }
     if (is_file($from . '/task.sqlite') && !@rename($from . '/task.sqlite', $to . '/task.sqlite')) {
+        if ($hasFiles) {
+            @rename($to . '/files', $from . '/files');
+        }
         return false;
     }
     foreach (['task.sqlite-wal', 'task.sqlite-shm', 'SETUP-CODE'] as $file) {
@@ -298,6 +306,25 @@ function migrate(PDO $pdo): void
             );
             CREATE INDEX idx_login_attempts_time ON login_attempts(attempted_at);
             PRAGMA user_version = 1;
+            SQL);
+        $pdo->commit();
+    }
+    if ($version < 2) {
+        $pdo->beginTransaction();
+        $pdo->exec(<<<SQL
+            CREATE TABLE files (
+                id          INTEGER PRIMARY KEY AUTOINCREMENT,
+                task_id     INTEGER NOT NULL REFERENCES tasks(id) ON DELETE CASCADE,
+                name        TEXT    NOT NULL,
+                mime        TEXT    NOT NULL,
+                size        INTEGER NOT NULL,
+                storage_key TEXT    NOT NULL UNIQUE,
+                has_thumb   INTEGER NOT NULL DEFAULT 0,
+                uploaded_by INTEGER REFERENCES users(id) ON DELETE SET NULL,
+                created_at  TEXT    NOT NULL DEFAULT (datetime('now'))
+            );
+            CREATE INDEX idx_files_task ON files(task_id);
+            PRAGMA user_version = 2;
             SQL);
         $pdo->commit();
     }
@@ -529,6 +556,12 @@ function valid_color(mixed $color): bool
 /* ------------------------------------------------------------------ */
 /* Ausgabe                                                             */
 /* ------------------------------------------------------------------ */
+
+/** SQLite-Zeitstempel (UTC) → ISO 8601 für JavaScript. */
+function iso(?string $sqliteDate): ?string
+{
+    return $sqliteDate ? str_replace(' ', 'T', $sqliteDate) . 'Z' : null;
+}
 
 function e(mixed $value): string
 {

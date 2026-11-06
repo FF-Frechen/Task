@@ -39,6 +39,12 @@
   const dlgUsers = document.getElementById('dlg-users');
   const dlgColors = document.getElementById('dlg-colors');
   const dlgMeta = document.getElementById('dlg-meta');
+  const dlgFiles = document.getElementById('dlg-files');
+  const fileInput = document.getElementById('dlg-file-input');
+  const dlgStorage = document.getElementById('dlg-storage');
+  const uploadBox = document.getElementById('dlg-upload');
+  const uploadBar = document.getElementById('dlg-upload-bar');
+  const uploadLabel = document.getElementById('dlg-upload-label');
   const toastEl = document.getElementById('toast');
 
   let state = { users: [], tasks: [] };
@@ -95,6 +101,9 @@
 
   let toastTimer = null;
   function toast(message, isError = false) {
+    // Ein offener Dialog liegt über allem – die Meldung muss dann in den Dialog.
+    const host = dlg.open ? dlg : document.body;
+    if (toastEl.parentNode !== host) host.append(toastEl);
     toastEl.textContent = message;
     toastEl.classList.toggle('toast-error', isError);
     toastEl.classList.add('show');
@@ -106,7 +115,7 @@
   /* Server                                                            */
   /* ---------------------------------------------------------------- */
 
-  async function api(action, body) {
+  async function api(action, body, params) {
     const opts = { credentials: 'same-origin', headers: { Accept: 'application/json' } };
     if (body !== undefined) {
       opts.method = 'POST';
@@ -116,7 +125,8 @@
     }
     let res;
     try {
-      res = await fetch('api.php?action=' + encodeURIComponent(action), opts);
+      const query = params ? '&' + new URLSearchParams(params).toString() : '';
+      res = await fetch('api.php?action=' + encodeURIComponent(action) + query, opts);
     } catch (_) {
       throw new Error('Keine Verbindung zum Server.');
     }
@@ -228,6 +238,10 @@
         t.status === 'done' && t.doneAt
           ? h('time', { class: 'card-date', datetime: t.doneAt, title: 'Erledigt am ' + fmt(t.doneAt) },
             dayMonth.format(new Date(t.doneAt)))
+          : null,
+        t.fileCount
+          ? h('span', { class: 'card-files', title: `${t.fileCount} ${t.fileCount === 1 ? 'Datei' : 'Dateien'}` },
+            h('span', { 'aria-hidden': 'true' }, '📎'), String(t.fileCount))
           : null,
         h('button', {
           type: 'button',
@@ -350,6 +364,9 @@
     if (t.doneAt) meta.push(`erledigt am ${fmt(t.doneAt)}`);
     dlgMeta.textContent = meta.join(' · ');
 
+    showFiles(id, null);
+    loadFiles(id);
+
     dlg.showModal();
     if (!matchMedia('(pointer: coarse)').matches) field('title').focus();
   }
@@ -373,13 +390,183 @@
 
   document.getElementById('dlg-delete').addEventListener('click', async () => {
     const t = state.tasks.find((x) => x.id === editingId);
-    if (!t || !confirm(`„${t.title}“ wirklich löschen?`)) return;
+    const extra = t && t.fileCount ? `\n\n${t.fileCount === 1 ? 'Die angehängte Datei wird' : `Die ${t.fileCount} angehängten Dateien werden`} ebenfalls gelöscht.` : '';
+    if (!t || !confirm(`„${t.title}“ wirklich löschen?${extra}`)) return;
     if (await mutate('delete', { id: t.id }, 'Gelöscht')) dlg.close();
   });
 
   // Klick auf den abgedunkelten Hintergrund schließt den Dialog.
   dlg.addEventListener('click', (ev) => { if (ev.target === dlg) dlg.close(); });
   dlg.addEventListener('close', () => { editingId = null; });
+
+  /* ---------------------------------------------------------------- */
+  /* Dateianhänge                                                      */
+  /* ---------------------------------------------------------------- */
+
+  let storage = null;     // { used, limit, maxFile } in Bytes
+  let filesTaskId = null; // Aufgabe, deren Dateien gerade im Dialog stehen
+
+  function formatBytes(bytes) {
+    const units = ['Bytes', 'KB', 'MB', 'GB'];
+    let i = 0;
+    let v = bytes;
+    while (v >= 1024 && i < units.length - 1) { v /= 1024; i++; }
+    return v.toLocaleString('de-DE', { maximumFractionDigits: i >= 2 ? 1 : 0 }) + ' ' + units[i];
+  }
+
+  function fileIcon(mime) {
+    if (mime.startsWith('image/')) return '🖼️';
+    if (mime.startsWith('video/')) return '🎬';
+    if (mime.startsWith('audio/')) return '🎵';
+    if (mime === 'application/pdf') return '📄';
+    return '📎';
+  }
+
+  function showFiles(taskId, files) {
+    filesTaskId = taskId;
+    if (files === null) {
+      dlgFiles.replaceChildren();
+      dlgStorage.textContent = '';
+      return;
+    }
+    dlgFiles.replaceChildren(...files.map((f) => {
+      const href = 'file.php?id=' + f.id;
+      return h('div', { class: 'file' },
+        h('a', { class: 'file-link', href, target: '_blank', rel: 'noopener', title: f.name },
+          f.thumb
+            ? h('img', { class: 'file-thumb', src: href + '&thumb=1', alt: '', loading: 'lazy' })
+            : h('span', { class: 'file-thumb file-icon', 'aria-hidden': 'true' }, fileIcon(f.mime)),
+          h('span', { class: 'file-name' }, f.name),
+          h('span', { class: 'file-size' }, formatBytes(f.size))),
+        h('button', {
+          type: 'button', class: 'file-del', title: 'Datei löschen', 'aria-label': 'Datei löschen: ' + f.name,
+          onclick: () => deleteFile(f),
+        }, '×'));
+    }));
+    renderStorage();
+  }
+
+  function renderStorage() {
+    dlgStorage.textContent = storage
+      ? `${formatBytes(storage.used)} von ${formatBytes(storage.limit)} belegt`
+      : '';
+  }
+
+  function applyFiles(taskId, data) {
+    if (data.storage) storage = data.storage;
+    if (editingId === taskId && data.files) showFiles(taskId, data.files);
+    else renderStorage();
+  }
+
+  async function loadFiles(taskId) {
+    try {
+      applyFiles(taskId, await api('files', undefined, { task: taskId }));
+    } catch (err) {
+      if (editingId === taskId) toast(err.message, true);
+    }
+  }
+
+  async function deleteFile(f) {
+    if (!confirm(`Datei „${f.name}“ löschen?`)) return;
+    const taskId = filesTaskId;
+    const data = await mutate('delete_file', { id: f.id }, 'Datei gelöscht');
+    if (data) applyFiles(taskId, data);
+  }
+
+  /** Kleines JPEG-Vorschaubild im Browser erzeugen (berücksichtigt die Drehung von Handyfotos). */
+  function makeThumb(file) {
+    if (!/^image\/(jpeg|png|gif|webp|avif)$/.test(file.type)) return Promise.resolve(null);
+    return new Promise((resolve) => {
+      const url = URL.createObjectURL(file);
+      const img = new Image();
+      img.onload = () => {
+        const scale = Math.min(1, 480 / Math.max(img.naturalWidth, img.naturalHeight));
+        const w = Math.max(1, Math.round(img.naturalWidth * scale));
+        const hgt = Math.max(1, Math.round(img.naturalHeight * scale));
+        const canvas = document.createElement('canvas');
+        canvas.width = w;
+        canvas.height = hgt;
+        const ctx = canvas.getContext('2d');
+        ctx.fillStyle = '#fff';
+        ctx.fillRect(0, 0, w, hgt);
+        ctx.drawImage(img, 0, 0, w, hgt);
+        URL.revokeObjectURL(url);
+        canvas.toBlob((blob) => resolve(blob), 'image/jpeg', 0.8);
+      };
+      img.onerror = () => { URL.revokeObjectURL(url); resolve(null); };
+      img.src = url;
+    });
+  }
+
+  function setProgress(label, fraction) {
+    uploadBox.hidden = false;
+    uploadLabel.textContent = label;
+    uploadBar.style.width = Math.round(fraction * 100) + '%';
+  }
+
+  /** Lädt eine Datei hoch. Ergebnis: null bei Erfolg, sonst die Fehlermeldung. */
+  function uploadOne(taskId, file, label) {
+    return new Promise(async (resolve) => {
+      const fd = new FormData();
+      fd.append('task', String(taskId));
+      fd.append('file', file, file.name);
+      const thumb = await makeThumb(file).catch(() => null);
+      if (thumb) fd.append('thumb', thumb, 'thumb.jpg');
+
+      const xhr = new XMLHttpRequest();
+      xhr.open('POST', 'api.php?action=upload');
+      xhr.setRequestHeader('X-CSRF-Token', CSRF);
+      xhr.setRequestHeader('Accept', 'application/json');
+      xhr.upload.onprogress = (ev) => { if (ev.lengthComputable) setProgress(label, ev.loaded / ev.total); };
+      xhr.onload = () => {
+        let data = null;
+        try { data = JSON.parse(xhr.responseText); } catch (_) { /* kein JSON */ }
+        if (xhr.status === 401) { location.href = 'login.php'; return resolve('Bitte neu anmelden.'); }
+        if (xhr.status >= 200 && xhr.status < 300 && data) {
+          setState(data);
+          applyFiles(taskId, data);
+          return resolve(null);
+        }
+        resolve((data && data.error)
+          || (xhr.status === 413 ? 'Die Datei ist zu groß.' : 'Upload fehlgeschlagen (Fehler ' + xhr.status + ').'));
+      };
+      xhr.onerror = () => resolve('Keine Verbindung – Upload fehlgeschlagen.');
+      setProgress(label, 0);
+      xhr.send(fd);
+    });
+  }
+
+  fileInput.addEventListener('change', async () => {
+    const files = [...fileInput.files];
+    fileInput.value = '';
+    const taskId = filesTaskId;
+    if (!files.length || taskId === null) return;
+    if (!storage) await loadFiles(taskId);
+
+    let done = 0;
+    let error = null;
+    for (const [i, file] of files.entries()) {
+      const label = files.length > 1 ? `${i + 1}/${files.length}: ${file.name}` : file.name;
+      if (storage && file.size > storage.maxFile) {
+        error = `„${file.name}“ ist zu groß (max. ${formatBytes(storage.maxFile)} pro Datei).`;
+        continue;
+      }
+      if (storage && storage.used + file.size > storage.limit) {
+        error = `Speicher voll: Das Limit von ${formatBytes(storage.limit)} ist erreicht. `
+          + 'Bitte zuerst alte Dateien oder Aufgaben löschen.';
+        break;
+      }
+      busy++;
+      const failed = await uploadOne(taskId, file, label);
+      busy--;
+      if (failed) { error = failed; break; }
+      done++;
+    }
+    uploadBox.hidden = true;
+    const success = done === 1 ? '1 Datei hochgeladen.' : `${done} Dateien hochgeladen.`;
+    if (error) toast((done ? success + ' ' : '') + error, true);
+    else if (done) toast(success);
+  });
 
   /* ---------------------------------------------------------------- */
   /* Drag & Drop (Maus). Auf dem Handy: Knopf auf der Karte / Dialog.   */

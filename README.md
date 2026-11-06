@@ -8,6 +8,10 @@ Eine bewusst einfache Aufgaben-App für ein kleines Team, gedacht vor allem für
 - **Farbmarkierung** pro Aufgabe (z. B. Rot = dringend), frei nach Absprache.
 - **Ein Tipp** auf „▶ Starten“ / „✓ Erledigt“ schiebt die Karte weiter.
   Wer eine Aufgabe ohne Zuständige startet, wird automatisch zuständig.
+- **Fotos & Dateien** an Aufgaben hängen (am Handy direkt aus der Kamera oder Mediathek).
+  Bilder erscheinen als Vorschau, die Karte zeigt 📎 mit der Anzahl.
+- **Speicherlimit 10 GB** für alle Dateien zusammen. Ist es voll, kommt eine Fehlermeldung,
+  und man muss erst alte Dateien oder Aufgaben löschen.
 - **Filter:** „Alle“, pro Person, „Niemand zugeteilt“.
 - Am Handy: Spalten als Tabs, zum Wechseln auch wischen. Am PC: Karten per Drag & Drop verschieben.
 - Änderungen der anderen erscheinen automatisch (alle 15 Sekunden bzw. beim Zurückkehren in die App).
@@ -92,9 +96,20 @@ Beides funktioniert. Die Standard-Einstellung hat den Vorteil, dass PHP dieser D
 anderer Websites im selben Webspace lesen kann. Wechselt man später auf die zweite Option, ziehen die
 Daten beim nächsten Aufruf automatisch um.
 
+## Dateianhänge
+
+- Im Aufgaben-Dialog unter **Dateien** auf „＋ Foto / Datei“ tippen. Mehrere auf einmal sind möglich.
+- **Gesamtlimit 10 GB** (änderbar über `storage_limit_gb` in `config.local.php`). Ist es erreicht,
+  wird der Upload mit der Meldung „Speicher voll … Bitte zuerst alte Dateien oder Aufgaben löschen.“ abgelehnt.
+- **Größe pro Datei** begrenzt Plesk über `upload_max_filesize` und `post_max_size`
+  (PHP-Einstellungen, Standard bei euch 128M → ca. 127 MB pro Datei). Für größere Videos dort beide Werte erhöhen.
+- Wird eine Aufgabe gelöscht, werden ihre Dateien mitgelöscht.
+- Dateien liegen im gesperrten Datenordner unter Zufallsnamen und werden nur nach Login ausgeliefert.
+  Nur Bilder, Videos und Audio zeigt der Browser direkt an; alles andere (z. B. HTML) wird nur heruntergeladen.
+
 ## Datensicherung
 
-Alle Daten stecken in einer Datei `task.sqlite` (Ort siehe oben). Das normale Plesk-Backup des Webspace
+Alle Daten stecken in der Datei `task.sqlite` und im Unterordner `files/` (Ort siehe oben). Das normale Plesk-Backup des Webspace
 sichert sie mit. Sie ist nicht im Git-Repo und wird bei Updates nicht angefasst.
 
 ## Einstellungen (optional)
@@ -118,7 +133,8 @@ httpdocs/            ← Repo-Inhalt (Plesk-Git-Bereitstellung)
   login.php          Anmeldung
   setup.php          Ersteinrichtung
   users.php          Mein Konto & Benutzerverwaltung
-  api.php            JSON-Schnittstelle für das Board
+  api.php            JSON-Schnittstelle für das Board (inkl. Upload)
+  file.php           Liefert Dateianhänge aus (nur angemeldet)
   assets/            CSS, JavaScript, Icons
   src/               Konfiguration, Sicherheit, Session, Datenbank (gesperrt)
 task-data/           ← Datenbank & Sitzungen, wird automatisch angelegt (nicht im Web, nicht im Git)

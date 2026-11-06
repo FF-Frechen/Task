@@ -55,6 +55,21 @@ page_start((string)cfg('app_name'), $me, 'board-page');
       <textarea name="description" rows="4" maxlength="5000" placeholder="Details, Links, Notizen …"></textarea>
     </label>
     <div class="field">
+      <span class="field-label">Dateien</span>
+      <div id="dlg-files" class="files"></div>
+      <div class="files-actions">
+        <label class="btn btn-sm file-pick">
+          <span aria-hidden="true">＋</span> Foto / Datei
+          <input type="file" id="dlg-file-input" class="sr-only" multiple>
+        </label>
+        <span id="dlg-storage" class="muted small"></span>
+      </div>
+      <div id="dlg-upload" class="upload" hidden>
+        <div class="upload-bar"><span id="dlg-upload-bar"></span></div>
+        <span id="dlg-upload-label" class="muted small"></span>
+      </div>
+    </div>
+    <div class="field">
       <span class="field-label">Zuständig</span>
       <div id="dlg-users" class="chips"></div>
     </div>
