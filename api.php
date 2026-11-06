@@ -5,7 +5,7 @@
  *   POST api.php?action=create|update|move|delete   (JSON-Body, Header X-CSRF-Token)
  */
 declare(strict_types=1);
-require __DIR__ . '/../src/bootstrap.php';
+require __DIR__ . '/src/bootstrap.php';
 
 header('Content-Type: application/json; charset=utf-8');
 

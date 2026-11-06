@@ -1,7 +1,7 @@
 <?php
 declare(strict_types=1);
-require __DIR__ . '/../src/bootstrap.php';
-require __DIR__ . '/../src/views/layout.php';
+require __DIR__ . '/src/bootstrap.php';
+require __DIR__ . '/src/views/layout.php';
 
 if (user_count() === 0) {
     redirect('setup.php');

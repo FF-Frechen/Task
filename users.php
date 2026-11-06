@@ -1,8 +1,8 @@
 <?php
 /** Mein Konto (Farbe, Passwort) und – für Admins – Benutzerverwaltung. */
 declare(strict_types=1);
-require __DIR__ . '/../src/bootstrap.php';
-require __DIR__ . '/../src/views/layout.php';
+require __DIR__ . '/src/bootstrap.php';
+require __DIR__ . '/src/views/layout.php';
 
 $me = require_login();
 $pdo = db();

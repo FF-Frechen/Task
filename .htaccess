@@ -1,12 +1,34 @@
-# Fallback, falls der Dokumentenstamm (noch) nicht auf "public" zeigt:
-# alle Anfragen in den Ordner public/ umleiten. Empfohlen ist trotzdem,
-# in Plesk den Dokumentenstamm auf ".../public" zu stellen (siehe README).
+# Task – Apache-Einstellungen (Plesk). Die App liegt direkt in httpdocs.
 Options -Indexes
+DirectoryIndex index.php
+
+# Versteckte Dateien (.htaccess, .gitignore …) nie ausliefern
+<FilesMatch "^\.">
+  Require all denied
+</FilesMatch>
+
+# Doku und Konfiguration nicht ausliefern
+<FilesMatch "^(README\.md|config\.example\.php|config\.local\.php)$">
+  Require all denied
+</FilesMatch>
+
+# Interne Ordner sperren (haben zusätzlich eigene .htaccess)
 <IfModule mod_rewrite.c>
   RewriteEngine On
-  RewriteCond %{REQUEST_URI} !/public/
-  RewriteRule ^(.*)$ public/$1 [L]
+  RewriteRule ^(src|data|data-[0-9a-f]+)(/|$) - [F,L]
 </IfModule>
-<IfModule !mod_rewrite.c>
-  Require all denied
+
+<IfModule mod_mime.c>
+  <Files "manifest.json">
+    ForceType application/manifest+json
+  </Files>
+  AddType image/svg+xml .svg
+</IfModule>
+
+# CSS/JS/Bilder dürfen gecacht werden (Version steht in der URL)
+<IfModule mod_headers.c>
+  <FilesMatch "\.(css|js|svg|png)$">
+    Header set Cache-Control "public, max-age=604800"
+    Header set X-Content-Type-Options "nosniff"
+  </FilesMatch>
 </IfModule>

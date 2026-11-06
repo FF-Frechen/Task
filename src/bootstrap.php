@@ -10,11 +10,17 @@ if (PHP_VERSION_ID < 80100) {
     exit('Task benötigt PHP 8.1 oder neuer (in Plesk unter "PHP-Einstellungen" umstellen).');
 }
 
+// Dateien in src/ sind keine eigenen Seiten.
+if (PHP_SAPI !== 'cli' && realpath((string)($_SERVER['SCRIPT_FILENAME'] ?? '')) === __FILE__) {
+    http_response_code(404);
+    exit;
+}
+
 ini_set('display_errors', '0');
 ini_set('log_errors', '1');
 error_reporting(E_ALL);
 
-const APP_DIR = __DIR__ . '/..';
+define('APP_DIR', dirname(__DIR__));
 const STATUSES = ['idea', 'doing', 'done'];
 const COLORS = [
     'red'    => 'Rot',
@@ -39,7 +45,7 @@ function cfg(string $key): mixed
     if ($config === null) {
         $config = [
             'app_name'       => 'Task',
-            'data_dir'       => APP_DIR . '/data',
+            'data_dir'       => null,          // null = automatisch (siehe data_dir())
             'force_https'    => true,
             'session_idle'   => 12 * 3600,   // ohne "angemeldet bleiben": 12 h Inaktivität
             'remember_days'  => 30,          // mit "angemeldet bleiben"
@@ -117,16 +123,92 @@ function enforce_https(): void
 /* Datenbank (SQLite)                                                  */
 /* ------------------------------------------------------------------ */
 
+/**
+ * Ordner für Datenbank, Sitzungen und Einrichtungscode.
+ *
+ * 1. "data_dir" aus config.local.php, falls gesetzt.
+ * 2. Sonst "task-data" EINE EBENE ÜBER dem App-Ordner, also neben httpdocs.
+ *    Dort ist er aus dem Internet grundsätzlich nicht erreichbar.
+ * 3. Notlösung, falls PHP dort nicht schreiben darf: Unterordner "data-<zufall>"
+ *    im App-Ordner, mit .htaccess gesperrt und nicht erratbarem Namen.
+ *
+ * Die Reihenfolge der Prüfungen sorgt dafür, dass ein einmal gewählter Ort
+ * immer wieder gefunden wird.
+ */
 function data_dir(): string
 {
-    $dir = rtrim((string)cfg('data_dir'), '/');
-    if (!is_dir($dir) && !@mkdir($dir, 0770, true) && !is_dir($dir)) {
-        fatal('Das Datenverzeichnis kann nicht angelegt werden: ' . $dir);
-    }
-    if (!is_writable($dir)) {
-        fatal('Das Datenverzeichnis ist nicht beschreibbar: ' . $dir);
+    static $dir = null;
+    if ($dir === null) {
+        $dir = resolve_data_dir();
+        if (!is_writable($dir)) {
+            fatal('Der Datenordner ist nicht beschreibbar. Bitte Schreibrechte prüfen.');
+        }
     }
     return $dir;
+}
+
+function resolve_data_dir(): string
+{
+    $configured = cfg('data_dir');
+    if (is_string($configured) && $configured !== '') {
+        $configured = rtrim($configured, '/');
+        if (!@is_dir($configured) && !@mkdir($configured, 0770, true) && !@is_dir($configured)) {
+            fatal('Der in config.local.php eingestellte Datenordner kann nicht angelegt werden.');
+        }
+        return $configured;
+    }
+
+    $outside = outside_data_dir();
+    if (@is_dir($outside)) {
+        return $outside;
+    }
+    $fallback = glob(APP_DIR . '/data-*', GLOB_ONLYDIR) ?: [];
+    if ($fallback) {
+        return $fallback[0];
+    }
+    if (@mkdir($outside, 0770)) {
+        move_legacy_data($outside);
+        return $outside;
+    }
+
+    $dir = APP_DIR . '/data-' . bin2hex(random_bytes(16));
+    if (!@mkdir($dir, 0770)) {
+        fatal('Es kann kein Datenordner angelegt werden. Bitte Schreibrechte prüfen '
+            . 'oder in config.local.php einen Ordner angeben (siehe config.example.php).');
+    }
+    file_put_contents($dir . '/.htaccess', "Require all denied\n");
+    file_put_contents($dir . '/index.html', '');
+    move_legacy_data($dir);
+    return $dir;
+}
+
+function outside_data_dir(): string
+{
+    return dirname(APP_DIR) . '/task-data';
+}
+
+/** Übernimmt Daten aus dem Ordner data/ der ersten Version. */
+function move_legacy_data(string $target): void
+{
+    foreach (['task.sqlite', 'task.sqlite-wal', 'task.sqlite-shm', 'SETUP-CODE'] as $file) {
+        $old = APP_DIR . '/data/' . $file;
+        if (is_file($old)) {
+            @rename($old, $target . '/' . $file);
+        }
+    }
+}
+
+/** Wo findet man die Datei SETUP-CODE? (Text für die Ersteinrichtung) */
+function data_location_hint(): string
+{
+    if (cfg('data_dir')) {
+        return 'im Datenordner, der in config.local.php eingestellt ist';
+    }
+    if (data_dir() === outside_data_dir()) {
+        return 'im Ordner „task-data“, eine Ebene über dem App-Ordner, also direkt neben „httpdocs“ '
+            . '(Plesk → Dateien → ganz oben in der Ordnerliste)';
+    }
+    return 'im App-Ordner (z. B. „httpdocs“) im Unterordner, dessen Name mit „data-“ beginnt';
 }
 
 function db(): PDO
@@ -445,16 +527,15 @@ function fatal(string $message): never
     exit;
 }
 
-/** Zeigt Admins einen Hinweis, wenn der Dokumentenstamm nicht auf /public zeigt. */
-function docroot_warning(): ?string
+/** Hinweis für Admins, wenn die Daten nur per Notlösung im Web-Ordner liegen. */
+function data_warning(): ?string
 {
-    $docroot = realpath((string)($_SERVER['DOCUMENT_ROOT'] ?? ''));
-    $public = realpath(APP_DIR . '/public');
-    if ($docroot === false || $public === false || $docroot === $public) {
+    if (cfg('data_dir') || data_dir() === outside_data_dir()) {
         return null;
     }
-    return 'Hinweis: Der Dokumentenstamm der Domain sollte auf den Ordner "public" zeigen '
-        . '(Plesk → Hosting-Einstellungen → Dokumentenstamm, z. B. "httpdocs/public").';
+    return 'Hinweis: Die Daten liegen im Web-Ordner, weil PHP außerhalb davon nicht schreiben darf. '
+        . 'Sie sind per .htaccess und zufälligem Ordnernamen geschützt. Sicherer: in config.local.php '
+        . 'einen Ordner außerhalb von httpdocs als "data_dir" eintragen.';
 }
 
 /* ------------------------------------------------------------------ */

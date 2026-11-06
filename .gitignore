@@ -1,4 +1,6 @@
-# Laufzeitdaten (Datenbank, Sessions, Einrichtungscode) – niemals ins Repo
+# Laufzeitdaten (Datenbank, Sitzungen, Einrichtungscode) – niemals ins Repo
+/task-data/
+/data-*/
 /data/*
 !/data/.htaccess
 !/data/index.html

@@ -8,8 +8,9 @@ return [
     // Name oben links und im Browser-Tab
     'app_name' => 'Task',
 
-    // Ablageort für Datenbank & Sessions. Standard: Ordner "data" im Projekt.
-    // Tipp: außerhalb von httpdocs ablegen, z. B. '/var/www/vhosts/example.de/task-data'
+    // Ablageort für Datenbank & Sitzungen. Standard (null): automatisch der Ordner
+    // "task-data" eine Ebene über dem App-Ordner, also neben httpdocs.
+    // Nur setzen, wenn ein anderer Ort gewünscht ist (immer außerhalb von httpdocs!):
     // 'data_dir' => '/var/www/vhosts/example.de/task-data',
 
     // HTTP automatisch auf HTTPS umleiten (sollte an bleiben)

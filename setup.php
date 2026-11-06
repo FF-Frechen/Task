@@ -5,8 +5,8 @@
  * Einrichtungscode aus der Datei data/SETUP-CODE (liegt nicht im Web).
  */
 declare(strict_types=1);
-require __DIR__ . '/../src/bootstrap.php';
-require __DIR__ . '/../src/views/layout.php';
+require __DIR__ . '/src/bootstrap.php';
+require __DIR__ . '/src/views/layout.php';
 
 if (user_count() > 0) {
     redirect('login.php');
@@ -75,9 +75,8 @@ page_start('Ersteinrichtung', null, 'auth-page');
   <div class="auth-card auth-card-wide">
     <h1 class="auth-title"><span class="brand-mark" aria-hidden="true"></span>Ersteinrichtung</h1>
     <p class="muted">Lege den ersten Benutzer an. Er wird Administrator und kann danach weitere Benutzer anlegen.</p>
-    <p class="hint">Den <strong>Einrichtungscode</strong> findest du in der Datei <code>data/SETUP-CODE</code>
-      im Projektordner (Plesk → Dateien, z. B. <code>httpdocs/data/SETUP-CODE</code>).
-      Die Datei wird nach der Einrichtung automatisch gelöscht.</p>
+    <p class="hint">Den <strong>Einrichtungscode</strong> findest du in der Datei <code>SETUP-CODE</code>
+      <?= e(data_location_hint()) ?>. Die Datei wird nach der Einrichtung automatisch gelöscht.</p>
     <?php if ($error): ?><p class="alert alert-error" role="alert"><?= e($error) ?></p><?php endif; ?>
     <form method="post" action="setup.php" class="stack">
       <?= csrf_field() ?>

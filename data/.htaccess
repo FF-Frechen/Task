@@ -1,2 +1,3 @@
-# Dieses Verzeichnis enthält die Datenbank und darf nie ausgeliefert werden.
+# Alter Datenordner der ersten Version (wird nicht mehr benutzt).
+# Bleibt gesperrt, falls noch Dateien darin liegen.
 Require all denied

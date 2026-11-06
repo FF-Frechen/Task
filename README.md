@@ -14,6 +14,7 @@ Eine bewusst einfache Aufgaben-App für ein kleines Team, gedacht vor allem für
 - Lässt sich auf den Home-Bildschirm legen und startet dann wie eine App.
 
 Technik: PHP 8.1+ und SQLite. Keine Datenbank-Einrichtung, kein Composer, kein Build-Schritt.
+Die App läuft direkt in `httpdocs`. Am Dokumentenstamm muss nichts geändert werden.
 
 ---
 
@@ -23,10 +24,10 @@ Technik: PHP 8.1+ und SQLite. Keine Datenbank-Einrichtung, kein Composer, kein B
 
 1. Domain oder Subdomain anlegen, z. B. `task.example.de`.
 2. **SSL/TLS-Zertifikate** → Let's Encrypt-Zertifikat ausstellen.
-3. In den **Hosting-Einstellungen**:
-   - „Permanente SEO-sichere 301-Weiterleitung von HTTP zu HTTPS“ einschalten.
-   - **Dokumentenstamm** auf `httpdocs/public` stellen ← wichtig für die Sicherheit.
+3. In den **Hosting-Einstellungen** „Permanente SEO-sichere 301-Weiterleitung von HTTP zu HTTPS“ einschalten.
 4. **PHP-Einstellungen:** PHP 8.1 oder neuer (8.3 empfohlen). `pdo_sqlite` ist in Plesk standardmäßig aktiv.
+5. Im **Dateimanager** die Plesk-Standarddateien in `httpdocs` löschen (`index.html`, Ordner `css`, `img`,
+   `favicon.ico` usw.), sonst erscheint statt Task die Plesk-Willkommensseite.
 
 ### 2. Code per Git holen
 
@@ -42,8 +43,9 @@ Technik: PHP 8.1+ und SQLite. Keine Datenbank-Einrichtung, kein Composer, kein B
 ### 3. Ersteinrichtung
 
 1. Die Domain im Browser öffnen. Es erscheint **Ersteinrichtung**.
-2. Den **Einrichtungscode** findest du im Plesk-Dateimanager in `httpdocs/data/SETUP-CODE`.
-   Diese Datei liegt nicht im Web und wird nach der Einrichtung automatisch gelöscht.
+2. Den **Einrichtungscode** findest du im Plesk-Dateimanager in der Datei `task-data/SETUP-CODE`.
+   Der Ordner `task-data` liegt **neben** `httpdocs` (ganz oben in der Ordnerliste), also nicht im Web.
+   Die Datei wird nach der Einrichtung automatisch gelöscht. Die Seite zeigt den genauen Ort ebenfalls an.
 3. Ersten Benutzer anlegen. Er wird Administrator.
 4. Unter **Konto & Benutzer** (Klick auf den eigenen Kreis oben rechts) die anderen Benutzer anlegen
    und ihnen ihr Startpasswort geben. Jeder kann sein Passwort danach selbst ändern.
@@ -72,15 +74,17 @@ Beim Login „Angemeldet bleiben“ ankreuzen, dann bleibt man 30 Tage angemelde
 - CSRF-Token bei allen Änderungen, nur vorbereitete SQL-Statements, konsequentes Escaping.
 - Strenge Content-Security-Policy (kein Inline-JavaScript), Schutz gegen Einbetten (Clickjacking),
   `noindex` für Suchmaschinen.
-- Datenbank, Sitzungen und Code liegen **außerhalb** des Web-Ordners (`public/`).
-  Zusätzlich sperren `.htaccess`-Dateien den Zugriff, falls der Dokumentenstamm noch nicht umgestellt ist.
-  Admins sehen dann oben einen Hinweis.
+- Datenbank und Sitzungen liegen im Ordner `task-data` **neben** `httpdocs`, also außerhalb des Web-Ordners.
+  Sie sind aus dem Internet grundsätzlich nicht abrufbar.
+  Notlösung, falls PHP dort nicht schreiben darf: ein Unterordner `data-<Zufallsname>` in `httpdocs`,
+  gesperrt per `.htaccess`. Admins sehen dann oben einen Hinweis.
+- Interne Dateien (`src/`, `README.md`, Konfiguration) sind per `.htaccess` gesperrt.
 - Ersteinrichtung nur mit dem Einrichtungscode vom Server möglich.
 
 ## Datensicherung
 
-Alle Daten stecken im Ordner `data/` (Datei `task.sqlite`). Das normale Plesk-Backup der Domain
-sichert ihn mit. Der Ordner ist nicht im Git-Repo und wird bei Updates nicht angefasst.
+Alle Daten stecken in der Datei `task-data/task.sqlite` (neben `httpdocs`). Das normale Plesk-Backup
+des Webspace sichert sie mit. Der Ordner ist nicht im Git-Repo und wird bei Updates nicht angefasst.
 
 ## Einstellungen (optional)
 
@@ -90,23 +94,21 @@ Ablageort der Daten, Dauer der Anmeldung oder Login-Sperre. `config.local.php` b
 ## Lokal ausprobieren
 
 ```bash
-php -S localhost:8080 -t public
+php -S localhost:8080
 ```
 
-Dann <http://localhost:8080> öffnen. Der Einrichtungscode steht in `data/SETUP-CODE`.
+Dann <http://localhost:8080> öffnen. Der Einrichtungscode steht in `../task-data/SETUP-CODE`.
 
 ## Aufbau
 
 ```
-public/            ← Dokumentenstamm (nur dieser Ordner ist im Web sichtbar)
-  index.php        Board
-  login.php        Anmeldung
-  setup.php        Ersteinrichtung
-  users.php        Mein Konto & Benutzerverwaltung
-  api.php          JSON-Schnittstelle für das Board
-  assets/          CSS, JavaScript, Icons
-src/
-  bootstrap.php    Konfiguration, Sicherheit, Session, Datenbank
-  views/layout.php Seitenrahmen
-data/              Datenbank & Sitzungen (wird automatisch angelegt, nicht im Git)
+httpdocs/            ← Repo-Inhalt (Plesk-Git-Bereitstellung)
+  index.php          Board
+  login.php          Anmeldung
+  setup.php          Ersteinrichtung
+  users.php          Mein Konto & Benutzerverwaltung
+  api.php            JSON-Schnittstelle für das Board
+  assets/            CSS, JavaScript, Icons
+  src/               Konfiguration, Sicherheit, Session, Datenbank (gesperrt)
+task-data/           ← Datenbank & Sitzungen, wird automatisch angelegt (nicht im Web, nicht im Git)
 ```

@@ -1,6 +1,11 @@
 <?php
 declare(strict_types=1);
 
+if (!defined('APP_DIR')) {
+    http_response_code(404);
+    exit;
+}
+
 /** Kopf jeder Seite. $user = angemeldeter Benutzer oder null (Login/Setup). */
 function page_start(string $title, ?array $user = null, string $bodyClass = ''): void
 {
@@ -40,7 +45,7 @@ function page_start(string $title, ?array $user = null, string $bodyClass = ''):
     </form>
   </nav>
 </header>
-<?php if ($user['is_admin'] && ($warning = docroot_warning())): ?>
+<?php if ($user['is_admin'] && ($warning = data_warning())): ?>
 <p class="banner"><?= e($warning) ?></p>
 <?php endif; ?>
 <?php endif; ?>
@@ -63,7 +68,7 @@ function initials(string $name): string
 
 function asset_version(string $file): string
 {
-    $path = APP_DIR . '/public/assets/' . $file;
+    $path = APP_DIR . '/assets/' . $file;
     return is_file($path) ? (string)filemtime($path) : '1';
 }
 
