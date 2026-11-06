@@ -1,0 +1,10 @@
+# Laufzeitdaten (Datenbank, Sessions, Einrichtungscode) – niemals ins Repo
+/data/*
+!/data/.htaccess
+!/data/index.html
+
+# Lokale Konfiguration
+/config.local.php
+
+.DS_Store
+Thumbs.db

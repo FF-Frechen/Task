@@ -1,0 +1,12 @@
+# Fallback, falls der Dokumentenstamm (noch) nicht auf "public" zeigt:
+# alle Anfragen in den Ordner public/ umleiten. Empfohlen ist trotzdem,
+# in Plesk den Dokumentenstamm auf ".../public" zu stellen (siehe README).
+Options -Indexes
+<IfModule mod_rewrite.c>
+  RewriteEngine On
+  RewriteCond %{REQUEST_URI} !/public/
+  RewriteRule ^(.*)$ public/$1 [L]
+</IfModule>
+<IfModule !mod_rewrite.c>
+  Require all denied
+</IfModule>
