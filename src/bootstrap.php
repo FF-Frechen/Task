@@ -33,7 +33,7 @@ const COLORS = [
     'pink'   => 'Pink',
     'gray'   => 'Grau',
 ];
-const MIN_PASSWORD_LENGTH = 10;
+const MIN_PASSWORD_LENGTH = 6;
 
 /* ------------------------------------------------------------------ */
 /* Konfiguration                                                       */
@@ -228,17 +228,13 @@ function remove_dir(string $dir): void
     @rmdir($dir);
 }
 
-/** Wo findet man die Datei SETUP-CODE? (Text für die Ersteinrichtung) */
+/** Wo liegt die Datei SETUP-CODE? (kurzer Text für die Ersteinrichtung) */
 function data_location_hint(): string
 {
     if (cfg('data_dir')) {
-        return 'im Datenordner, der in config.local.php eingestellt ist';
+        return basename((string)cfg('data_dir')) . '/';
     }
-    if (data_dir() === outside_data_dir()) {
-        return 'im Ordner „task-data“, eine Ebene über dem App-Ordner, also direkt neben „httpdocs“ '
-            . '(Plesk → Dateien → ganz oben in der Ordnerliste)';
-    }
-    return 'im App-Ordner (z. B. „httpdocs“) im Unterordner, dessen Name mit „data-“ beginnt';
+    return data_dir() === outside_data_dir() ? 'task-data/' : 'httpdocs/data-…/';
 }
 
 function db(): PDO
@@ -555,18 +551,6 @@ function fatal(string $message): never
     exit;
 }
 
-/** Hinweis für Admins, wenn die Daten nur per Notlösung im Web-Ordner liegen. */
-function data_warning(): ?string
-{
-    if (cfg('data_dir') || data_dir() === outside_data_dir()) {
-        return null;
-    }
-    return 'Die Daten liegen in httpdocs in einem Ordner mit Zufallsnamen, gesperrt per .htaccess, '
-        . 'weil PHP außerhalb von httpdocs nicht schreiben darf (open_basedir). Das ist sicher. '
-        . 'Wer sie ganz aus dem Web-Ordner haben möchte: In Plesk → PHP-Einstellungen bei open_basedir '
-        . '„{WEBSPACEROOT}{/}{:}{TMP}{/}{:}/var/lib/php/sessions“ wählen. Beim nächsten Aufruf ziehen '
-        . 'die Daten dann automatisch in den Ordner „task-data“ neben httpdocs um.';
-}
 
 /* ------------------------------------------------------------------ */
 /* Start                                                               */

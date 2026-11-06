@@ -74,9 +74,7 @@ page_start('Ersteinrichtung', null, 'auth-page');
 <main class="auth">
   <div class="auth-card auth-card-wide">
     <h1 class="auth-title"><span class="brand-mark" aria-hidden="true"></span>Ersteinrichtung</h1>
-    <p class="muted">Lege den ersten Benutzer an. Er wird Administrator und kann danach weitere Benutzer anlegen.</p>
-    <p class="hint">Den <strong>Einrichtungscode</strong> findest du in der Datei <code>SETUP-CODE</code>
-      <?= e(data_location_hint()) ?>. Die Datei wird nach der Einrichtung automatisch gelöscht.</p>
+    <p class="hint">Einrichtungscode: Datei <code><?= e(data_location_hint()) ?>SETUP-CODE</code> im Plesk-Dateimanager.</p>
     <?php if ($error): ?><p class="alert alert-error" role="alert"><?= e($error) ?></p><?php endif; ?>
     <form method="post" action="setup.php" class="stack">
       <?= csrf_field() ?>

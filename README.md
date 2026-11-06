@@ -66,7 +66,7 @@ Beim Login „Angemeldet bleiben“ ankreuzen, dann bleibt man 30 Tage angemelde
 ## Sicherheit
 
 - Nur über **HTTPS** erreichbar (HTTP wird umgeleitet, HSTS aktiv).
-- Passwörter mit `password_hash` (bcrypt/argon2) gespeichert, mindestens 10 Zeichen.
+- Passwörter mit `password_hash` (bcrypt/argon2) gespeichert, mindestens 6 Zeichen.
 - **Schutz gegen Passwort-Raten:** Nach 5 Fehlversuchen pro Benutzer bzw. 20 pro IP-Adresse
   ist der Login 15 Minuten gesperrt.
 - Sitzungs-Cookie: `HttpOnly`, `Secure`, `SameSite=Lax`, `__Host-`-Präfix, neue Sitzungs-ID beim Login.
@@ -90,7 +90,7 @@ Das hängt von der Plesk-Einstellung **open_basedir** ab (PHP-Einstellungen der 
 
 Beides funktioniert. Die Standard-Einstellung hat den Vorteil, dass PHP dieser Domain keine Dateien
 anderer Websites im selben Webspace lesen kann. Wechselt man später auf die zweite Option, ziehen die
-Daten beim nächsten Aufruf automatisch um. Admins sehen unter „Konto & Benutzer“, welcher Fall vorliegt.
+Daten beim nächsten Aufruf automatisch um.
 
 ## Datensicherung
 
