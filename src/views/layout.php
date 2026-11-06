@@ -45,9 +45,6 @@ function page_start(string $title, ?array $user = null, string $bodyClass = ''):
     </form>
   </nav>
 </header>
-<?php if ($user['is_admin'] && ($warning = data_warning())): ?>
-<p class="banner"><?= e($warning) ?></p>
-<?php endif; ?>
 <?php endif; ?>
 <?php
 }

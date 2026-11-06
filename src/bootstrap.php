@@ -162,13 +162,21 @@ function resolve_data_dir(): string
     if (@is_dir($outside)) {
         return $outside;
     }
-    $fallback = glob(APP_DIR . '/data-*', GLOB_ONLYDIR) ?: [];
-    if ($fallback) {
-        return $fallback[0];
-    }
+    $fallback = (glob(APP_DIR . '/data-*', GLOB_ONLYDIR) ?: [])[0] ?? null;
+
+    // Darf PHP außerhalb schreiben (z. B. nach Änderung von open_basedir in Plesk),
+    // ziehen vorhandene Daten automatisch dorthin um.
     if (@mkdir($outside, 0770)) {
-        move_legacy_data($outside);
-        return $outside;
+        if (move_data($fallback ?? APP_DIR . '/data', $outside)) {
+            if ($fallback !== null) {
+                remove_dir($fallback);
+            }
+            return $outside;
+        }
+        @rmdir($outside); // Umzug fehlgeschlagen: Daten bleiben, wo sie sind.
+    }
+    if ($fallback !== null) {
+        return $fallback;
     }
 
     $dir = APP_DIR . '/data-' . bin2hex(random_bytes(16));
@@ -178,7 +186,7 @@ function resolve_data_dir(): string
     }
     file_put_contents($dir . '/.htaccess', "Require all denied\n");
     file_put_contents($dir . '/index.html', '');
-    move_legacy_data($dir);
+    move_data(APP_DIR . '/data', $dir);
     return $dir;
 }
 
@@ -187,15 +195,37 @@ function outside_data_dir(): string
     return dirname(APP_DIR) . '/task-data';
 }
 
-/** Übernimmt Daten aus dem Ordner data/ der ersten Version. */
-function move_legacy_data(string $target): void
+/**
+ * Verschiebt Datenbank und Einrichtungscode (z. B. aus data/ der ersten Version
+ * oder aus der Notlösung). false, wenn die Datenbank nicht verschoben werden konnte.
+ */
+function move_data(string $from, string $to): bool
 {
-    foreach (['task.sqlite', 'task.sqlite-wal', 'task.sqlite-shm', 'SETUP-CODE'] as $file) {
-        $old = APP_DIR . '/data/' . $file;
-        if (is_file($old)) {
-            @rename($old, $target . '/' . $file);
+    if (is_file($from . '/task.sqlite') && !@rename($from . '/task.sqlite', $to . '/task.sqlite')) {
+        return false;
+    }
+    foreach (['task.sqlite-wal', 'task.sqlite-shm', 'SETUP-CODE'] as $file) {
+        if (is_file($from . '/' . $file)) {
+            @rename($from . '/' . $file, $to . '/' . $file);
         }
     }
+    return true;
+}
+
+function remove_dir(string $dir): void
+{
+    foreach (scandir($dir) ?: [] as $entry) {
+        if ($entry === '.' || $entry === '..') {
+            continue;
+        }
+        $path = $dir . '/' . $entry;
+        if (is_dir($path) && !is_link($path)) {
+            remove_dir($path);
+        } else {
+            @unlink($path);
+        }
+    }
+    @rmdir($dir);
 }
 
 /** Wo findet man die Datei SETUP-CODE? (Text für die Ersteinrichtung) */
@@ -306,8 +336,6 @@ function start_session(): void
     session_save_path($dir);
     session_name(is_https() ? '__Host-task' : 'task_session');
     ini_set('session.use_strict_mode', '1');
-    ini_set('session.use_only_cookies', '1');
-    ini_set('session.use_trans_sid', '0');
     ini_set('session.cookie_httponly', '1');
     ini_set('session.gc_maxlifetime', (string)((int)cfg('remember_days') * 86400));
     ini_set('session.gc_probability', '1');
@@ -533,9 +561,11 @@ function data_warning(): ?string
     if (cfg('data_dir') || data_dir() === outside_data_dir()) {
         return null;
     }
-    return 'Hinweis: Die Daten liegen im Web-Ordner, weil PHP außerhalb davon nicht schreiben darf. '
-        . 'Sie sind per .htaccess und zufälligem Ordnernamen geschützt. Sicherer: in config.local.php '
-        . 'einen Ordner außerhalb von httpdocs als "data_dir" eintragen.';
+    return 'Die Daten liegen in httpdocs in einem Ordner mit Zufallsnamen, gesperrt per .htaccess, '
+        . 'weil PHP außerhalb von httpdocs nicht schreiben darf (open_basedir). Das ist sicher. '
+        . 'Wer sie ganz aus dem Web-Ordner haben möchte: In Plesk → PHP-Einstellungen bei open_basedir '
+        . '„{WEBSPACEROOT}{/}{:}{TMP}{/}{:}/var/lib/php/sessions“ wählen. Beim nächsten Aufruf ziehen '
+        . 'die Daten dann automatisch in den Ordner „task-data“ neben httpdocs um.';
 }
 
 /* ------------------------------------------------------------------ */

@@ -25,7 +25,8 @@ Die App läuft direkt in `httpdocs`. Am Dokumentenstamm muss nichts geändert we
 1. Domain oder Subdomain anlegen, z. B. `task.example.de`.
 2. **SSL/TLS-Zertifikate** → Let's Encrypt-Zertifikat ausstellen.
 3. In den **Hosting-Einstellungen** „Permanente SEO-sichere 301-Weiterleitung von HTTP zu HTTPS“ einschalten.
-4. **PHP-Einstellungen:** PHP 8.1 oder neuer (8.3 empfohlen). `pdo_sqlite` ist in Plesk standardmäßig aktiv.
+4. **PHP-Einstellungen:** PHP 8.1 oder neuer (getestet bis 8.5). `pdo_sqlite` ist in Plesk standardmäßig aktiv.
+   Alle anderen Werte können auf „Standard“ bleiben (zu `open_basedir` siehe unten).
 5. Im **Dateimanager** die Plesk-Standarddateien in `httpdocs` löschen (`index.html`, Ordner `css`, `img`,
    `favicon.ico` usw.), sonst erscheint statt Task die Plesk-Willkommensseite.
 
@@ -43,9 +44,9 @@ Die App läuft direkt in `httpdocs`. Am Dokumentenstamm muss nichts geändert we
 ### 3. Ersteinrichtung
 
 1. Die Domain im Browser öffnen. Es erscheint **Ersteinrichtung**.
-2. Den **Einrichtungscode** findest du im Plesk-Dateimanager in der Datei `task-data/SETUP-CODE`.
-   Der Ordner `task-data` liegt **neben** `httpdocs` (ganz oben in der Ordnerliste), also nicht im Web.
-   Die Datei wird nach der Einrichtung automatisch gelöscht. Die Seite zeigt den genauen Ort ebenfalls an.
+2. Den **Einrichtungscode** findest du im Plesk-Dateimanager in der Datei `SETUP-CODE`.
+   Die Einrichtungsseite zeigt an, in welchem Ordner sie liegt (siehe „Wo liegen die Daten?“).
+   Die Datei wird nach der Einrichtung automatisch gelöscht.
 3. Ersten Benutzer anlegen. Er wird Administrator.
 4. Unter **Konto & Benutzer** (Klick auf den eigenen Kreis oben rechts) die anderen Benutzer anlegen
    und ihnen ihr Startpasswort geben. Jeder kann sein Passwort danach selbst ändern.
@@ -74,17 +75,27 @@ Beim Login „Angemeldet bleiben“ ankreuzen, dann bleibt man 30 Tage angemelde
 - CSRF-Token bei allen Änderungen, nur vorbereitete SQL-Statements, konsequentes Escaping.
 - Strenge Content-Security-Policy (kein Inline-JavaScript), Schutz gegen Einbetten (Clickjacking),
   `noindex` für Suchmaschinen.
-- Datenbank und Sitzungen liegen im Ordner `task-data` **neben** `httpdocs`, also außerhalb des Web-Ordners.
-  Sie sind aus dem Internet grundsätzlich nicht abrufbar.
-  Notlösung, falls PHP dort nicht schreiben darf: ein Unterordner `data-<Zufallsname>` in `httpdocs`,
-  gesperrt per `.htaccess`. Admins sehen dann oben einen Hinweis.
+- Datenbank und Sitzungen sind aus dem Internet nicht abrufbar (siehe „Wo liegen die Daten?“).
 - Interne Dateien (`src/`, `README.md`, Konfiguration) sind per `.htaccess` gesperrt.
 - Ersteinrichtung nur mit dem Einrichtungscode vom Server möglich.
 
+## Wo liegen die Daten?
+
+Das hängt von der Plesk-Einstellung **open_basedir** ab (PHP-Einstellungen der Domain):
+
+| open_basedir | Speicherort | Einschätzung |
+|---|---|---|
+| `{DOCROOT}{/}{:}{TMP}{/}…` **(Standard)** | `httpdocs/data-<Zufallsname>/` | sicher: per `.htaccess` gesperrt, Name nicht erratbar |
+| `{WEBSPACEROOT}{/}{:}{TMP}{/}{:}/var/lib/php/sessions` | `task-data/` neben `httpdocs` | am sichersten: liegt gar nicht im Web-Ordner |
+
+Beides funktioniert. Die Standard-Einstellung hat den Vorteil, dass PHP dieser Domain keine Dateien
+anderer Websites im selben Webspace lesen kann. Wechselt man später auf die zweite Option, ziehen die
+Daten beim nächsten Aufruf automatisch um. Admins sehen unter „Konto & Benutzer“, welcher Fall vorliegt.
+
 ## Datensicherung
 
-Alle Daten stecken in der Datei `task-data/task.sqlite` (neben `httpdocs`). Das normale Plesk-Backup
-des Webspace sichert sie mit. Der Ordner ist nicht im Git-Repo und wird bei Updates nicht angefasst.
+Alle Daten stecken in einer Datei `task.sqlite` (Ort siehe oben). Das normale Plesk-Backup des Webspace
+sichert sie mit. Sie ist nicht im Git-Repo und wird bei Updates nicht angefasst.
 
 ## Einstellungen (optional)
 

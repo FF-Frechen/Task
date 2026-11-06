@@ -205,6 +205,13 @@ page_start('Konto & Benutzer', $me);
     </form>
     <?php endif; ?>
   </section>
+
+  <?php if ($me['is_admin'] && ($note = data_warning())): ?>
+  <section class="panel">
+    <h2>Speicherort der Daten</h2>
+    <p class="hint"><?= e($note) ?></p>
+  </section>
+  <?php endif; ?>
 </main>
 <?php
 page_end(['users.js']);
