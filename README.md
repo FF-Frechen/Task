@@ -27,8 +27,8 @@ Die App läuft direkt in `httpdocs`. Am Dokumentenstamm muss nichts geändert we
 3. In den **Hosting-Einstellungen** „Permanente SEO-sichere 301-Weiterleitung von HTTP zu HTTPS“ einschalten.
 4. **PHP-Einstellungen:** PHP 8.1 oder neuer (getestet bis 8.5). `pdo_sqlite` ist in Plesk standardmäßig aktiv.
    Alle anderen Werte können auf „Standard“ bleiben (zu `open_basedir` siehe unten).
-5. Im **Dateimanager** die Plesk-Standarddateien in `httpdocs` löschen (`index.html`, Ordner `css`, `img`,
-   `favicon.ico` usw.), sonst erscheint statt Task die Plesk-Willkommensseite.
+5. Optional: Im **Dateimanager** die Plesk-Standarddateien in `httpdocs` löschen (`index.html`, Ordner `css`,
+   `img` usw.). Nötig ist das nicht, die `.htaccess` sorgt dafür, dass trotzdem Task erscheint.
 
 ### 2. Code per Git holen
 
@@ -76,7 +76,7 @@ Beim Login „Angemeldet bleiben“ ankreuzen, dann bleibt man 30 Tage angemelde
 - Strenge Content-Security-Policy (kein Inline-JavaScript), Schutz gegen Einbetten (Clickjacking),
   `noindex` für Suchmaschinen.
 - Datenbank und Sitzungen sind aus dem Internet nicht abrufbar (siehe „Wo liegen die Daten?“).
-- Interne Dateien (`src/`, `README.md`, Konfiguration) sind per `.htaccess` gesperrt.
+- Interne Dateien (`src/`, `README.md`, Konfiguration, Datenordner) sind per `.htaccess` gesperrt (mit Apache 2.4 getestet).
 - Ersteinrichtung nur mit dem Einrichtungscode vom Server möglich.
 
 ## Wo liegen die Daten?
